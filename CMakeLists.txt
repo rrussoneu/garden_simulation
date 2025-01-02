@@ -14,11 +14,15 @@ find_package(assimp REQUIRED)
 
 set(SOURCES
         src/main.cpp
-        
+        src/view/mainwindow.cpp
+        src/view/gardenglwidget.cpp
+
 
 )
 
 set(HEADERS
+        src/view/mainwindow.h
+        src/view/gardenglwidget.h
 
 
 )
