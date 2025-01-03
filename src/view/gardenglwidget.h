@@ -8,9 +8,12 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include "../renderer/shader.h"
+#include <QOpenGLFunctions_3_3_Core>
 
 
-class GardenGLWidget : public QOpenGLWidget {
+
+class GardenGLWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
     Q_OBJECT
 
 public:
@@ -19,8 +22,21 @@ public:
 
 protected:
     void initializeGL() override;
-    //void resizeGL(int w, int h) override;
-    //void paintGL() override;
+    void resizeGL(int w, int h) override;
+    void paintGL() override;
+
+private:
+    // Shaders
+    std::unique_ptr<Shader> m_gridShader;
+
+    // Buffers
+    GLuint  m_gridVAO, m_gridVBO;
+
+    void initializeShaders();
+    void initializeGrid();
+
+
+
 
 
 };
