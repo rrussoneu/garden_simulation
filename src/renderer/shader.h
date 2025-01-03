@@ -28,10 +28,7 @@ public:
     void setVec3(const QString &name, const QVector3D &vector);
     void setFloat(const QString &name, float value);
     void setInt(const QString &name, int value);
-    void setBool(const QString& name, bool value) {
-        m_program->setUniformValue(name.toStdString().c_str(), value ? 1 : 0);
-
-    }
+    void setBool(const QString& name, bool value);
 private:
     std::unique_ptr<QOpenGLShaderProgram> m_program;
     QString m_vertexPath;
