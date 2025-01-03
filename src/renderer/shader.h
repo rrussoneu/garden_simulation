@@ -6,9 +6,10 @@
 #define GARDEN_SIMULATION_SHADER_H
 #pragma once
 
+#include <OpenGL/gl.h>
+#include <QOpenGLFunctions>
 #include <QString>
 #include <QOpenGLShaderProgram>
-#include <QOpenGLFunctions>
 
 
 
@@ -29,6 +30,7 @@ public:
     void setInt(const QString &name, int value);
     void setBool(const QString& name, bool value) {
         m_program->setUniformValue(name.toStdString().c_str(), value ? 1 : 0);
+
     }
 private:
     std::unique_ptr<QOpenGLShaderProgram> m_program;
