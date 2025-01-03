@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.20)
 project(garden_simulation)
 
 
@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS Core Gui Widgets OpenGLWidgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(assimp REQUIRED)
 
@@ -16,6 +16,8 @@ set(SOURCES
         src/main.cpp
         src/view/mainwindow.cpp
         src/view/gardenglwidget.cpp
+        src/renderer/shader.cpp
+        src/renderer/camera.cpp
 
 
 )
@@ -23,6 +25,8 @@ set(SOURCES
 set(HEADERS
         src/view/mainwindow.h
         src/view/gardenglwidget.h
+        src/renderer/camera.h
+        src/renderer/shader.h
 
 
 )

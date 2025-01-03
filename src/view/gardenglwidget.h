@@ -7,6 +7,8 @@
 
 
 #include <QOpenGLWidget>
+#include <QOpenGLFunctions>
+
 
 class GardenGLWidget : public QOpenGLWidget {
     Q_OBJECT
@@ -14,6 +16,11 @@ class GardenGLWidget : public QOpenGLWidget {
 public:
     explicit GardenGLWidget(QWidget *parent = nullptr);
     ~GardenGLWidget() { } ;
+
+protected:
+    void initializeGL() override;
+    void resizeGL(int w, int h) override;
+    void paintGL() override;
 
 
 };

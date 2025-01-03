@@ -9,3 +9,7 @@ GardenGLWidget::GardenGLWidget(QWidget* parent)
 {
 
 }
+
+void GardenGLWidget::initializeGL() {
+
+}
