@@ -28,10 +28,12 @@ signals:
 
 
 protected:
+    // OpenGL init/ rendering
     void initializeGL() override;
     void resizeGL(int w, int h) override;
     void paintGL() override;
 
+    // User input
     void mousePressEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -45,11 +47,12 @@ private:
     // Buffers
     GLuint  m_gridVAO, m_gridVBO;
 
+    // Init helpers
     void initializeShaders();
     void initializeGrid();
 
     // Mouse tracking
-    QPoint m_lastPos;
+    QPoint m_lastPos; // Last mouse position
 
     QVector3D screenToWorld(const QPoint& screenPos);  // Convert screen to world coordinates
 

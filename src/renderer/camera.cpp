@@ -33,7 +33,7 @@ void Camera::updatePosition() {
 QMatrix4x4 Camera::getViewMatrix() const {
     // Create view matrix for world space to camera space
     QMatrix4x4 view;
-    view.lookAt(m_position, m_target, m_up);
+    view.lookAt(m_position, m_target, m_up); // Position and orient camera
     return view;
 }
 

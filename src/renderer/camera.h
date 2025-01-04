@@ -14,8 +14,8 @@ public:
     Camera(float aspectRatio = 16.0f/9.0f);
     ~Camera() {}
 
-    QMatrix4x4 getViewMatrix() const;
-    QMatrix4x4 getProjectionMatrix() const;
+    QMatrix4x4 getViewMatrix() const; // World to camera
+    QMatrix4x4 getProjectionMatrix() const; // Perspective proj
 
     void orbit(float deltaX, float deltaY);
     void zoom(float delta);
@@ -30,19 +30,21 @@ public:
     float getDistance();
 
 private:
-    QVector3D m_position;
-    QVector3D m_target;
-    QVector3D m_up;
 
+    // Position and orientation
+    QVector3D m_position; // Pos in world coords
+    QVector3D m_target; // Point camera is looking at
+    QVector3D m_up; // Up vector
 
-    float m_fov;
-    float m_aspectRatio;
-    float m_nearPlane;
-    float m_farPlane;
+    // Perspective projection
+    float m_fov; // Field of view
+    float m_aspectRatio; // w/h ratio of viewport
+    float m_nearPlane; // Near clip plane
+    float m_farPlane; // Far clip plane
 
-    float m_distance;
-    float m_phi;
-    float m_theta;
+    float m_distance; // Camera to target distance
+    float m_phi; // Horizontal orbital angle
+    float m_theta; // Vertical orbital angle
 
     void updatePosition();
 };

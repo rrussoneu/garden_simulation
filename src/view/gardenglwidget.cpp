@@ -84,7 +84,7 @@ void GardenGLWidget::initializeGrid() {
         gridVertices.push_back(0.0f);           // normal z
     }
 
-    // Create and bind Vertex Array Object
+    // Buffers for rendering grid
     glGenVertexArrays(1, &m_gridVAO);
     glGenBuffers(1, &m_gridVBO);
 
@@ -112,13 +112,16 @@ void GardenGLWidget::paintGL() {
     // Clear color and depth buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // Camera matrices for rendering
     QMatrix4x4 view = m_camera->getViewMatrix();
     QMatrix4x4 projection = m_camera->getProjectionMatrix();
 
+    // Shader params
     m_gridShader->bind();
     m_gridShader->setMat4("view", view);
     m_gridShader->setMat4("projection", projection);
 
+    // Lighting params
     QVector3D lightPos(5.0f, 5.0f, 5.0f);
     QVector3D lightColor(1.0f, 1.0f, 1.0f);
     m_gridShader->setVec3("lightPos", lightPos);
@@ -126,10 +129,11 @@ void GardenGLWidget::paintGL() {
     m_gridShader->setVec3("gridColor", QVector3D(0.8f, 0.8f, 0.8f));
     m_gridShader->setFloat("ambientStrength", 0.3f);
 
-    QMatrix4x4 model;
+    // Draw grid
+    QMatrix4x4 model; // Identity matrix for grid in world space
     m_gridShader->setMat4("model", model);
     glBindVertexArray(m_gridVAO);
-    glDrawArrays(GL_LINES, 0, 44);
+    glDrawArrays(GL_LINES, 0, 44); // Draw grid lines
 
 }
 
@@ -163,22 +167,29 @@ void GardenGLWidget::wheelEvent(QWheelEvent *event) {
 }
 
 QVector3D GardenGLWidget::screenToWorld(const QPoint &screenPos) {
+    // SCreen to normalized device coords (-1 to 1)
     float x = (2.0 * screenPos.x()) / width() - 1.0f;
     float y = 1.0  - (2.0f * screenPos.y()) / height();
 
+    // Ray in clip space
     QVector4D rayClip(x, y, -1.0f, 1.0f);
+    // Transform to world space with inverse matrices - backwards through pipeline
     QMatrix4x4 invProjection = m_camera->getProjectionMatrix().inverted();
     QMatrix4x4 invView = m_camera->getViewMatrix().inverted();
 
-    QVector4D rayEye = invProjection * rayClip;
-    rayEye.setZ(-1.0f);
-    rayEye.setW(0.0f);
+    // Ray direction in world space
 
+    // Undo projection to go to view space
+    QVector4D rayEye = invProjection * rayClip;
+    rayEye.setZ(-1.0f); // Point ray forward
+    rayEye.setW(0.0f); // Convert to direction vector
+    // Undo view transformation to go to world
     QVector4D rayWorld = invView * rayEye;
     QVector3D rayDir(rayWorld.x(), rayWorld.y(), rayWorld.z());
     rayDir.normalize();
 
+    // Intersection with ground plane (y=0)
     QVector3D camPos = m_camera->getPosition();
     float t = -camPos.y() / rayDir.y();
-    return camPos + rayDir * t;
+    return camPos + rayDir * t; // Intersection point
 }
