@@ -18,6 +18,8 @@ set(SOURCES
         src/view/gardenglwidget.cpp
         src/renderer/shader.cpp
         src/renderer/camera.cpp
+        src/model/model.cpp
+
 )
 
 set(HEADERS
@@ -25,6 +27,7 @@ set(HEADERS
         src/view/gardenglwidget.h
         src/renderer/camera.h
         src/renderer/shader.h
+        src/model/model.h
 )
 
 # Create executable
