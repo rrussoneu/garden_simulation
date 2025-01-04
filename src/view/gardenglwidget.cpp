@@ -3,10 +3,13 @@
 //
 
 #include "gardenglwidget.h"
+#include <QMouseEvent>
+
 
 GardenGLWidget::GardenGLWidget(QWidget* parent)
         : QOpenGLWidget(parent)
         , m_gridShader(nullptr)
+        , m_camera(std::make_unique<Camera>())
 
 {
 
@@ -21,8 +24,10 @@ void GardenGLWidget::initializeGL() {
 
     glEnable(GL_DEPTH_TEST);
 
-    initializeGrid();
     initializeShaders();
+
+    initializeGrid();
+
 }
 
 void GardenGLWidget::initializeShaders() {
@@ -107,6 +112,73 @@ void GardenGLWidget::paintGL() {
     // Clear color and depth buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    QMatrix4x4 view = m_camera->getViewMatrix();
+    QMatrix4x4 projection = m_camera->getProjectionMatrix();
+
+    m_gridShader->bind();
+    m_gridShader->setMat4("view", view);
+    m_gridShader->setMat4("projection", projection);
+
+    QVector3D lightPos(5.0f, 5.0f, 5.0f);
+    QVector3D lightColor(1.0f, 1.0f, 1.0f);
+    m_gridShader->setVec3("lightPos", lightPos);
+    m_gridShader->setVec3("lightColor", lightColor);
+    m_gridShader->setVec3("gridColor", QVector3D(0.8f, 0.8f, 0.8f));
+    m_gridShader->setFloat("ambientStrength", 0.3f);
+
+    QMatrix4x4 model;
+    m_gridShader->setMat4("model", model);
+    glBindVertexArray(m_gridVAO);
+    glDrawArrays(GL_LINES, 0, 44);
+
+}
 
 
+void GardenGLWidget::mousePressEvent(QMouseEvent *event) {
+    m_lastPos = event->pos();
+    if (event->button() == Qt::LeftButton) {
+        QVector3D worldPos = screenToWorld(event->pos());
+        emit gridClicked(QPoint(worldPos.x(), worldPos.z()));
+    }
+
+}
+void GardenGLWidget::mouseMoveEvent(QMouseEvent *event) {
+    QPoint delta = event->pos() - m_lastPos;
+
+    if (event->buttons() & Qt::RightButton) {
+        m_camera->orbit(delta.x(), delta.y());
+
+    } else if (event->buttons() & Qt::MiddleButton) {
+        m_camera->pan(delta.x(), delta.y());
+
+    }
+    m_lastPos = event->pos();
+    update();
+}
+
+void GardenGLWidget::wheelEvent(QWheelEvent *event) {
+    float delta = event->angleDelta().y() / 120.f;
+    m_camera->zoom(delta);
+    update();
+}
+
+QVector3D GardenGLWidget::screenToWorld(const QPoint &screenPos) {
+    float x = (2.0 * screenPos.x()) / width() - 1.0f;
+    float y = 1.0  - (2.0f * screenPos.y()) / height();
+
+    QVector4D rayClip(x, y, -1.0f, 1.0f);
+    QMatrix4x4 invProjection = m_camera->getProjectionMatrix().inverted();
+    QMatrix4x4 invView = m_camera->getViewMatrix().inverted();
+
+    QVector4D rayEye = invProjection * rayClip;
+    rayEye.setZ(-1.0f);
+    rayEye.setW(0.0f);
+
+    QVector4D rayWorld = invView * rayEye;
+    QVector3D rayDir(rayWorld.x(), rayWorld.y(), rayWorld.z());
+    rayDir.normalize();
+
+    QVector3D camPos = m_camera->getPosition();
+    float t = -camPos.y() / rayDir.y();
+    return camPos + rayDir * t;
 }

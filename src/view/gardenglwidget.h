@@ -9,6 +9,7 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include "../renderer/shader.h"
+#include "renderer/camera.h"
 #include <QOpenGLFunctions_3_3_Core>
 
 
@@ -20,20 +21,37 @@ public:
     explicit GardenGLWidget(QWidget *parent = nullptr);
     ~GardenGLWidget() { } ;
 
+
+signals:
+    // Signal for grid click events
+    void gridClicked(QPoint gridPosition);
+
+
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
     void paintGL() override;
 
+    void mousePressEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+
 private:
     // Shaders
     std::unique_ptr<Shader> m_gridShader;
+
+    std::unique_ptr<Camera> m_camera;
 
     // Buffers
     GLuint  m_gridVAO, m_gridVBO;
 
     void initializeShaders();
     void initializeGrid();
+
+    // Mouse tracking
+    QPoint m_lastPos;
+
+    QVector3D screenToWorld(const QPoint& screenPos);  // Convert screen to world coordinates
 
 
 

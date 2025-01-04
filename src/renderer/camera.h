@@ -9,7 +9,10 @@
 #include <QMatrix4x4>
 
 class Camera {
+
+public:
     Camera(float aspectRatio = 16.0f/9.0f);
+    ~Camera() {}
 
     QMatrix4x4 getViewMatrix() const;
     QMatrix4x4 getProjectionMatrix() const;
