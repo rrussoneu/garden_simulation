@@ -32,7 +32,7 @@ private:
     QVector3D m_up;
 
 
-    float m_pov;
+    float m_fov;
     float m_aspectRatio;
     float m_nearPlane;
     float m_farPlane;
