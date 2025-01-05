@@ -202,25 +202,39 @@ void GardenGLWidget::paintGL() {
 
     // Draw preview model if active
     if (m_isPreviewActive && m_previewModel) {
+        // Temporarily modify depth testing for transparent preview
+        glDepthFunc(GL_LEQUAL);  // Change depth function
+        glDepthMask(GL_FALSE);   // Don't write to depth buffer
+
         m_modelShader->bind();
-        m_modelShader->setBool("isPreview", true);  // Enable preview mode
+        m_modelShader->setBool("isPreview", true);
 
-        QPoint gridPos(m_previewPosition.x(), m_previewPosition.z());
-        bool isValid = canPlacePlant(gridPos);
+        // Convert world position to grid position for validity check
+        QPoint gridPos(std::floor(m_previewPosition.x()),
+                       std::floor(m_previewPosition.z()));
 
-        // Set preview material properties
-        QVector3D highlightColor = isValid ?
-                                   QVector3D(0.0f, 1.0f, 0.0f) :  // Pure green
-                                   QVector3D(1.0f, 0.0f, 0.0f);   // Pure red
+        // Check if position is within grid bounds
+        bool isWithinGrid = (gridPos.x() >= 0 && gridPos.x() < GRID_SIZE &&
+                             gridPos.y() >= 0 && gridPos.y() < GRID_SIZE);
 
-        m_modelShader->setVec3("previewColor", highlightColor);  // New uniform for preview
+        // Check if position is valid for placement
+        bool isValidPlacement = isWithinGrid &&
+                                m_grid[gridPos.x()][gridPos.y()].hasBed &&
+                                !m_grid[gridPos.x()][gridPos.y()].plant;
+
+        QVector3D highlightColor = isValidPlacement ?
+                                   QVector3D(0.0f, 1.0f, 0.0f) :  // Valid placement
+                                   QVector3D(1.0f, 0.0f, 0.0f);   // Invalid placement
+
+        m_modelShader->setVec3("previewColor", highlightColor);
         m_modelShader->setFloat("previewAlpha", 0.7f);
 
-        // Draw preview model
         m_previewModel->setPosition(m_previewPosition);
         m_previewModel->draw(m_modelShader.get());
 
-        // Reset shader state
+        // Reset depth testing to normal
+        glDepthFunc(GL_LESS);
+        glDepthMask(GL_TRUE);
         m_modelShader->setBool("isPreview", false);
     }
 }
@@ -301,26 +315,29 @@ void GardenGLWidget::dragEnterEvent(QDragEnterEvent* event) {
 }
 
 void GardenGLWidget::dragMoveEvent(QDragMoveEvent* event) {
-    // Convert screen coordinates to grid position
-    QPoint gridPos = screenToGrid(event->pos());
+    // Get world position
+    QVector3D worldPos = screenToWorld(event->pos());
 
-    // Check if this is a valid placement location
-    bool isValid = canPlacePlant(gridPos);
+    // Calculate the grid cell position (for snapping)
+    float gridX = std::floor(worldPos.x());
+    float gridZ = std::floor(worldPos.z());
 
-    // If there is a preview model, update its position
+    // Calculate the position within the cell (0-1)
+    float cellX = worldPos.x() - gridX;
+    float cellZ = worldPos.z() - gridZ;
+
+    // Update preview position with snapping
     if (m_isPreviewActive) {
-        // Center the preview model in the grid cell
+        // Snap to grid cell centers
         m_previewPosition = QVector3D(
-                gridPos.x() + 0.5f,  // Center in X
-                0.0f,               // Ground level
-                gridPos.y() + 0.5f  // Center in Z
+                gridX + 0.5f,  // Snap X to cell center
+                0.0f,         // Ground level
+                gridZ + 0.5f  // Snap Z to cell center
         );
-
-        // Preview model's color updated in paintGL based on isValid
     }
 
     event->acceptProposedAction();
-    update();  // Trigger a redraw to show the updated preview
+    update();
 }
 
 void GardenGLWidget::dragLeaveEvent(QDragLeaveEvent* event) {
@@ -350,13 +367,26 @@ void GardenGLWidget::dropEvent(QDropEvent* event) {
 
 QPoint GardenGLWidget::screenToGrid(const QPoint& screenPos) {
     QVector3D worldPos = screenToWorld(screenPos);
-    return QPoint(static_cast<int>(worldPos.x()),
-                  static_cast<int>(worldPos.z()));
+
+    // Floor the world coordinates to make sure within bounds
+    int x = static_cast<int>(std::floor(worldPos.x()));
+    int z = static_cast<int>(std::floor(worldPos.z()));
+
+    x = std::clamp(x, 0, GRID_SIZE - 1);
+    z = std::clamp(z, 0, GRID_SIZE - 1);
+
+    return QPoint(x, z);
 }
 
 bool GardenGLWidget::canPlacePlant(const QPoint& gridPos) const {
     if (gridPos.x() < 0 || gridPos.x() >= GRID_SIZE ||
         gridPos.y() < 0 || gridPos.y() >= GRID_SIZE) {
+        return false;
+    }
+
+    // Extra safety check for the preview position
+    if (m_previewPosition.x() >= GRID_SIZE ||
+        m_previewPosition.z() >= GRID_SIZE) {
         return false;
     }
 
