@@ -52,13 +52,21 @@ public:
     void setScale(const QVector3D &mScale);
 
 private:
+    struct Texture {
+        GLuint id;
+        QString type;  // like diffuse, normal, etc
+        QString path;
+    };
+
     QVector3D m_rotation;
     QVector3D m_scale;
 
     bool parseMTL(const QString &mtlPath);
     void setupMesh();
 
+    std::vector<Texture> m_textures;
 
+    GLuint loadTexture(const QString& path);
 };
 
 

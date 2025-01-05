@@ -4,7 +4,10 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QtGui/QImage>
 #include "model.h"
+#include <QDir>
+
 
 Model::Model() : m_VAO(0), m_VBO(0), m_EBO(0),
     m_position(0.0f,0.0f,0.0f),
@@ -112,6 +115,36 @@ bool Model::loadModel(const QString &objPath) {
     }
 
     setupMesh();
+
+    QVector3D min(
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max()
+    );
+
+    QVector3D max(
+            std::numeric_limits<float>::lowest(),
+            std::numeric_limits<float>::lowest(),
+            std::numeric_limits<float>::lowest()
+    );
+
+    for (const auto &vertex : m_vertices) {
+        min.setX(qMin(min.x(), vertex.position.x()));
+        min.setY(qMin(min.y(), vertex.position.y()));
+        min.setZ(qMin(min.z(), vertex.position.z()));
+
+        max.setX(qMax(max.x(), vertex.position.x()));
+        max.setY(qMax(max.y(), vertex.position.y()));
+        max.setZ(qMax(max.z(), vertex.position.z()));
+    }
+
+    QVector3D dimensions = max - min;
+    QVector3D center     = (min + max) * 0.5f;
+
+    qDebug() << "Model dimensions:" << dimensions;
+    qDebug() << "Model center:"     << center;
+
+
     return true;
 
 
@@ -124,6 +157,18 @@ bool Model::parseMTL(const QString& mtlPath) {
         return false;
     }
 
+    qDebug() << "Loading material from:" << mtlPath;
+
+    // Set default material values
+    m_material.ambient = QVector3D(0.1f, 0.1f, 0.1f);   // Darker ambient by default
+    m_material.diffuse = QVector3D(0.6f, 0.4f, 0.2f);   // Default to wooden brown color
+    m_material.specular = QVector3D(0.1f, 0.1f, 0.1f);
+    m_material.shininess = 4.0f;
+
+    // Get the directory containing the MTL file and handle relative texture paths
+    QFileInfo mtlFileInfo(mtlPath);
+    QString mtlDir = mtlFileInfo.absolutePath();
+
     QTextStream in(&file);
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
@@ -131,12 +176,14 @@ bool Model::parseMTL(const QString& mtlPath) {
 
         if (parts.isEmpty()) continue;
 
+        // Handle standard material properties
         if (parts[0] == "Ka") {
             m_material.ambient = QVector3D(
                     parts[1].toFloat(),
                     parts[2].toFloat(),
                     parts[3].toFloat()
             );
+            qDebug() << "Ambient color:" << m_material.ambient;
         }
         else if (parts[0] == "Kd") {
             m_material.diffuse = QVector3D(
@@ -144,6 +191,7 @@ bool Model::parseMTL(const QString& mtlPath) {
                     parts[2].toFloat(),
                     parts[3].toFloat()
             );
+            qDebug() << "Diffuse color:" << m_material.diffuse;
         }
         else if (parts[0] == "Ks") {
             m_material.specular = QVector3D(
@@ -151,16 +199,69 @@ bool Model::parseMTL(const QString& mtlPath) {
                     parts[2].toFloat(),
                     parts[3].toFloat()
             );
+            qDebug() << "Specular color:" << m_material.specular;
         }
         else if (parts[0] == "Ns") {
             m_material.shininess = parts[1].toFloat();
+            qDebug() << "Shininess:" << m_material.shininess;
         }
+            // Handle texture maps
         else if (parts[0] == "map_Kd") {
-            m_material.diffuseMap = QFileInfo(mtlPath).path() + "/" + parts[1];
+            // Convert texture path to absolute path if it's relative
+            QString texPath = parts[1];
+            QFileInfo texFileInfo(texPath);
+            if (texFileInfo.isRelative()) {
+                texPath = QDir(mtlDir).absoluteFilePath(texPath);
+            }
+
+            // Load the diffuse texture
+            GLuint texID = loadTexture(texPath);
+            if (texID) {
+                m_textures.push_back({texID, "diffuse", texPath});
+                qDebug() << "Loaded diffuse texture:" << texPath;
+            } else {
+                qDebug() << "Failed to load diffuse texture:" << texPath;
+            }
+        }
+        else if (parts[0] == "map_Bump" || parts[0] == "bump") {
+            // Handle normal map parameters (-bm intensity value)
+            int pathIndex = 1;
+            float bumpMultiplier = 1.0f;
+
+            if (parts.size() > 2 && parts[1] == "-bm") {
+                bumpMultiplier = parts[2].toFloat();
+                pathIndex = 3;
+            }
+
+            // Get and resolve the texture path
+            QString texPath = parts[pathIndex];
+            QFileInfo texFileInfo(texPath);
+            if (texFileInfo.isRelative()) {
+                texPath = QDir(mtlDir).absoluteFilePath(texPath);
+            }
+
+            // Load the normal map texture
+            GLuint texID = loadTexture(texPath);
+            if (texID) {
+                m_textures.push_back({texID, "normal", texPath});
+                qDebug() << "Loaded normal map:" << texPath
+                         << "with bump multiplier:" << bumpMultiplier;
+            } else {
+                qDebug() << "Failed to load normal map:" << texPath;
+            }
         }
     }
 
     file.close();
+
+    // Debugging
+    qDebug() << "Final material properties:";
+    qDebug() << "  Ambient:" << m_material.ambient;
+    qDebug() << "  Diffuse:" << m_material.diffuse;
+    qDebug() << "  Specular:" << m_material.specular;
+    qDebug() << "  Shininess:" << m_material.shininess;
+    qDebug() << "  Number of textures loaded:" << m_textures.size();
+
     return true;
 }
 
@@ -223,10 +324,72 @@ void Model::draw(Shader* shader) {
     // Set model matrix
     shader->setMat4("model", getModelMatrix());
 
+    // Handle textures
+    int diffuseNr = 0;
+    int normalNr = 0;
+    bool hasDiffuse = false;
+    bool hasNormal = false;
+
+    for (unsigned int i = 0; i < m_textures.size(); i++) {
+        // Activate texture
+        glActiveTexture(GL_TEXTURE0 + i);
+
+        // Get texture type number
+        QString number;
+        QString name = m_textures[i].type;
+        if (name == "diffuse") {
+            number = QString::number(diffuseNr++);
+            hasDiffuse = true;
+            shader->setInt("diffuseMap", i);  // Diffuse map
+        }
+        else if (name == "normal") {
+            number = QString::number(normalNr++);
+            hasNormal = true;
+            shader->setInt("normalMap", i);   // Normal map
+        }
+
+        // Bind the texture
+        glBindTexture(GL_TEXTURE_2D, m_textures[i].id);
+    }
+
+
+    shader->setBool("hasDiffuseMap", hasDiffuse);
+    shader->setBool("hasNormalMap", hasNormal);
+
     // Draw mesh
     glBindVertexArray(m_VAO);
     glDrawElements(GL_TRIANGLES, m_indices.size(), GL_UNSIGNED_INT, 0);
+
+    // Cleanup
     glBindVertexArray(0);
+    glActiveTexture(GL_TEXTURE0);  // Reset active texture
 
     shader->release();
+}
+
+GLuint Model::loadTexture(const QString &path) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+
+    QImage image(path);
+    if (image.isNull()) {
+        qDebug() << "Failed to load texture:" << path;
+        return 0;
+    }
+
+    // Convert
+    image = image.convertToFormat(QImage::Format_RGBA8888);
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    return textureID;
 }

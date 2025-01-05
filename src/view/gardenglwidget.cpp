@@ -8,133 +8,174 @@
 
 GardenGLWidget::GardenGLWidget(QWidget* parent)
         : QOpenGLWidget(parent)
-        , m_gridShader(nullptr)
         , m_camera(std::make_unique<Camera>())
-
+        , m_temperature(60.0f)  // Default temperature (°F)
+        , m_moisture(0.5f)      // Default moisture (50%)
 {
-
+    setFocusPolicy(Qt::StrongFocus);  // Enable key events
 }
 
 void GardenGLWidget::initializeGL() {
     initializeOpenGLFunctions();
-
-    // Blueish clear color
     glClearColor(0.529f, 0.808f, 0.922f, 1.0f);
-
-
     glEnable(GL_DEPTH_TEST);
 
     initializeShaders();
-
-    initializeGrid();
-
+    initializeGridLines();
+    initializeModels();
+    initializeGridCells();
 }
 
 void GardenGLWidget::initializeShaders() {
     // Create and compile grid shader
-    m_gridShader = std::make_unique<Shader>("/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/grid.vert", "/Users/raphaelrusso/CLionProjects/garden_simulator/shaders/grid.frag");
+    m_gridShader = std::make_unique<Shader>(
+            "/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/grid.vert",
+            "/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/grid.frag"
+    );
     if (!m_gridShader->compile()) {
         qDebug() << "Failed to compile grid shader";
         return;
     }
     qDebug() << "Grid shader compiled successfully";
 
+    // Create and compile model shader
+    m_modelShader = std::make_unique<Shader>(
+            "/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/model.vert",
+            "/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/model.frag"
+    );
+    if (!m_modelShader->compile()) {
+        qDebug() << "Failed to compile model shader";
+        return;
+    }
+    qDebug() << "Model shader compiled successfully";
 }
 
-void GardenGLWidget::initializeGrid() {
+void GardenGLWidget::initializeGridLines() {
     std::vector<float> gridVertices;
+    for (int i = 0; i <= GRID_SIZE; ++i) {
+        // Horizontal lines
+        gridVertices.push_back(0.0f);      // x start
+        gridVertices.push_back(0.0f);      // y
+        gridVertices.push_back(float(i));  // z
+        gridVertices.push_back(0.0f);      // normal x
+        gridVertices.push_back(1.0f);      // normal y
+        gridVertices.push_back(0.0f);      // normal z
 
+        gridVertices.push_back(float(GRID_SIZE));  // x end
+        gridVertices.push_back(0.0f);             // y
+        gridVertices.push_back(float(i));         // z
+        gridVertices.push_back(0.0f);             // normal x
+        gridVertices.push_back(1.0f);             // normal y
+        gridVertices.push_back(0.0f);             // normal z
 
-    const int gridSize = 10;  // Number of cells in each direction
+        // Vertical lines
+        gridVertices.push_back(float(i));  // x
+        gridVertices.push_back(0.0f);      // y
+        gridVertices.push_back(0.0f);      // z start
+        gridVertices.push_back(0.0f);      // normal x
+        gridVertices.push_back(1.0f);      // normal y
+        gridVertices.push_back(0.0f);      // normal z
 
-    // Generate grid lines
-    for (int i = 0; i <= gridSize; ++i) {
-        // Horizontal lines (along X axis)
-        // Start point
-        gridVertices.push_back(0.0f);     // x = 0 (start)
-        gridVertices.push_back(0.0f);     // y = 0 (ground plane)
-        gridVertices.push_back(float(i)); // z = i
-        gridVertices.push_back(0.0f);     // normal x
-        gridVertices.push_back(1.0f);     // normal y
-        gridVertices.push_back(0.0f);     // normal z
-
-        // End point
-        gridVertices.push_back(float(gridSize)); // x = gridSize (end)
-        gridVertices.push_back(0.0f);           // y = 0
-        gridVertices.push_back(float(i));       // z = i
-        gridVertices.push_back(0.0f);           // normal x
-        gridVertices.push_back(1.0f);           // normal y
-        gridVertices.push_back(0.0f);           // normal z
-
-        // Vertical lines (along Z axis)
-        // Start point
-        gridVertices.push_back(float(i)); // x = i
-        gridVertices.push_back(0.0f);     // y = 0
-        gridVertices.push_back(0.0f);     // z = 0 (start)
-        gridVertices.push_back(0.0f);     // normal x
-        gridVertices.push_back(1.0f);     // normal y
-        gridVertices.push_back(0.0f);     // normal z
-
-        // End point
-        gridVertices.push_back(float(i));       // x = i
-        gridVertices.push_back(0.0f);           // y = 0
-        gridVertices.push_back(float(gridSize)); // z = gridSize (end)
-        gridVertices.push_back(0.0f);           // normal x
-        gridVertices.push_back(1.0f);           // normal y
-        gridVertices.push_back(0.0f);           // normal z
+        gridVertices.push_back(float(i));         // x
+        gridVertices.push_back(0.0f);             // y
+        gridVertices.push_back(float(GRID_SIZE)); // z end
+        gridVertices.push_back(0.0f);             // normal x
+        gridVertices.push_back(1.0f);             // normal y
+        gridVertices.push_back(0.0f);             // normal z
     }
 
-    // Buffers for rendering grid
     glGenVertexArrays(1, &m_gridVAO);
     glGenBuffers(1, &m_gridVBO);
 
     glBindVertexArray(m_gridVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_gridVBO);
-    glBufferData(GL_ARRAY_BUFFER, gridVertices.size() * sizeof(float), gridVertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, gridVertices.size() * sizeof(float),
+                 gridVertices.data(), GL_STATIC_DRAW);
 
-    // Position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
-    // Normal attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                          (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 }
 
-void GardenGLWidget::resizeGL(int w, int h) {
-    // Update viewport and camera aspect ratio when widget is resized
-    glViewport(0, 0, w, h);
+void GardenGLWidget::initializeModels() {
+    m_bedModel = std::make_unique<Model>();
+    if (!m_bedModel->loadModel("/Users/raphaelrusso/CLionProjects/garden_simulation/models/bed.obj")) {
+        qDebug() << "Failed to load garden bed model";
+        return;
+    }
+}
 
+void GardenGLWidget::initializeGridCells() {
+    m_grid.resize(GRID_SIZE, std::vector<GridCell>(GRID_SIZE));
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int z = 0; z < GRID_SIZE; ++z) {
+            m_grid[x][z].hasBed = true;
+            m_grid[x][z].position = QVector3D(x, 0, z);
+            m_grid[x][z].moisture = m_moisture;
+        }
+    }
+}
+
+void GardenGLWidget::resizeGL(int w, int h) {
+    glViewport(0, 0, w, h);
+    if (m_camera) {
+        m_camera->setAspectRatio(float(w) / float(h));
+    }
 }
 
 
 void GardenGLWidget::paintGL() {
-    // Clear color and depth buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Camera matrices for rendering
     QMatrix4x4 view = m_camera->getViewMatrix();
     QMatrix4x4 projection = m_camera->getProjectionMatrix();
 
-    // Shader params
+    // Draw grid
     m_gridShader->bind();
     m_gridShader->setMat4("view", view);
     m_gridShader->setMat4("projection", projection);
 
-    // Lighting params
-    QVector3D lightPos(5.0f, 5.0f, 5.0f);
-    QVector3D lightColor(1.0f, 1.0f, 1.0f);
+    QVector3D lightPos(5.0f, 5.0f, 5.0f);  // Will be updated with sun position later
+    QVector3D lightColor(1.0f, 1.0f, 1.0f); // Will be temperature-based later
     m_gridShader->setVec3("lightPos", lightPos);
     m_gridShader->setVec3("lightColor", lightColor);
     m_gridShader->setVec3("gridColor", QVector3D(0.8f, 0.8f, 0.8f));
     m_gridShader->setFloat("ambientStrength", 0.3f);
 
-    // Draw grid
-    QMatrix4x4 model; // Identity matrix for grid in world space
+    QMatrix4x4 model;
     m_gridShader->setMat4("model", model);
     glBindVertexArray(m_gridVAO);
-    glDrawArrays(GL_LINES, 0, 44); // Draw grid lines
+    glDrawArrays(GL_LINES, 0, (GRID_SIZE + 1) * 4);
 
+    // Draw garden beds
+    m_modelShader->bind();
+    m_modelShader->setMat4("view", view);
+    m_modelShader->setMat4("projection", projection);
+    m_modelShader->setVec3("lightPos", lightPos);
+    m_modelShader->setVec3("lightColor", lightColor);
+    m_modelShader->setVec3("viewPos", m_camera->getPosition());
+
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int z = 0; z < GRID_SIZE; ++z) {
+            const GridCell& cell = m_grid[x][z];
+            if (cell.hasBed) {
+                // Center the bed in the grid cell
+                QVector3D position(x + 0.5f, 0.0f, z + 0.5f);  // Add 0.5 to center in cell
+                m_bedModel->setPosition(position);
+
+                // If needed, add rotation to align with grid
+                m_bedModel->setRotation(QVector3D(0.0f, 0.0f, 0.0f));
+
+                // Scale if needed to fit grid
+                m_bedModel->setScale(QVector3D(1.0f, 1.0f, 1.0f));
+
+                m_bedModel->draw(m_modelShader.get());
+            }
+        }
+    }
 }
 
 
@@ -193,3 +234,4 @@ QVector3D GardenGLWidget::screenToWorld(const QPoint &screenPos) {
     float t = -camPos.y() / rayDir.y();
     return camPos + rayDir * t; // Intersection point
 }
+
