@@ -8,6 +8,6 @@ Ks 0.500000 0.500000 0.500000
 Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 illum 2
-map_Kd /Users/raphaelrusso/Desktop/garden/textures/Plants_BaseColor.png
-map_d /Users/raphaelrusso/Desktop/garden/source/D:/Документы/Output/Textures/Plants/Plants_alphamask.jpg
-map_Bump -bm 1.000000 /Users/raphaelrusso/Desktop/garden/textures/Plants_Normal.png
+map_Kd /Users/raphaelrusso/CLionProjects/garden_simulation/textures/Plants_BaseColor.png
+map_d /Users/raphaelrusso/CLionProjects/garden_simulation/textures/Plants_alphamask.jpg
+map_Bump -bm 1.000000 /Users/raphaelrusso/CLionProjects/garden_simulation/textures/Plants_Normal.png

@@ -9,5 +9,5 @@ Ke 0.000000 0.000000 0.000000
 Ni 1.500000
 d 1.000000
 illum 2
-map_Kd /Users/raphaelrusso/Desktop/garden/textures/Bed_BaseColor.png
-map_Bump -bm 1.000000 /Users/raphaelrusso/Desktop/garden/textures/Bed_Normal.png
+map_Kd /Users/raphaelrusso/CLionProjects/garden_simulation/textures/Bed_BaseColor.png
+map_Bump -bm 1.000000 /Users/raphaelrusso/CLionProjects/garden_simulation/textures/Bed_Normal.png
