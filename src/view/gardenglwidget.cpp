@@ -15,13 +15,15 @@ GardenGLWidget::GardenGLWidget(QWidget* parent)
 {
     setFocusPolicy(Qt::StrongFocus);  // Enable key events
     setAcceptDrops(true);
-    setAcceptDrops(true);
+
 }
 
 void GardenGLWidget::initializeGL() {
     initializeOpenGLFunctions();
     glClearColor(0.529f, 0.808f, 0.922f, 1.0f);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     initializeShaders();
     initializeGridLines();
@@ -160,6 +162,7 @@ void GardenGLWidget::paintGL() {
     m_modelShader->setVec3("lightPos", lightPos);
     m_modelShader->setVec3("lightColor", lightColor);
     m_modelShader->setVec3("viewPos", m_camera->getPosition());
+    m_modelShader->setBool("isPreview", false); // Beds and placed plants don't have any change with the preview state
 
     for (int x = 0; x < GRID_SIZE; ++x) {
         for (int z = 0; z < GRID_SIZE; ++z) {
@@ -200,22 +203,25 @@ void GardenGLWidget::paintGL() {
     // Draw preview model if active
     if (m_isPreviewActive && m_previewModel) {
         m_modelShader->bind();
-        m_previewModel->setPosition(m_previewPosition);
+        m_modelShader->setBool("isPreview", true);  // Enable preview mode
 
         QPoint gridPos(m_previewPosition.x(), m_previewPosition.z());
         bool isValid = canPlacePlant(gridPos);
 
-        // Use more subtle highlighting for preview
+        // Set preview material properties
         QVector3D highlightColor = isValid ?
-                                   QVector3D(0.2f, 1.0f, 0.2f) :  // Gentle green tint
-                                   QVector3D(1.0f, 0.2f, 0.2f);   // Gentle red tint
+                                   QVector3D(0.0f, 1.0f, 0.0f) :  // Pure green
+                                   QVector3D(1.0f, 0.0f, 0.0f);   // Pure red
 
-        // Apply highlight while preserving some material properties
-        m_modelShader->setVec3("material.ambient", highlightColor * 0.3f);
-        m_modelShader->setVec3("material.diffuse", highlightColor);
-        m_modelShader->setVec3("material.specular", QVector3D(0.5f, 0.5f, 0.5f));
+        m_modelShader->setVec3("previewColor", highlightColor);  // New uniform for preview
+        m_modelShader->setFloat("previewAlpha", 0.7f);
 
+        // Draw preview model
+        m_previewModel->setPosition(m_previewPosition);
         m_previewModel->draw(m_modelShader.get());
+
+        // Reset shader state
+        m_modelShader->setBool("isPreview", false);
     }
 }
 
@@ -301,7 +307,7 @@ void GardenGLWidget::dragMoveEvent(QDragMoveEvent* event) {
     // Check if this is a valid placement location
     bool isValid = canPlacePlant(gridPos);
 
-    // If we have an active preview model, update its position
+    // If there is a preview model, update its position
     if (m_isPreviewActive) {
         // Center the preview model in the grid cell
         m_previewPosition = QVector3D(
@@ -310,7 +316,7 @@ void GardenGLWidget::dragMoveEvent(QDragMoveEvent* event) {
                 gridPos.y() + 0.5f  // Center in Z
         );
 
-        // The preview model's color will be updated in paintGL based on isValid
+        // Preview model's color updated in paintGL based on isValid
     }
 
     event->acceptProposedAction();
@@ -328,7 +334,7 @@ void GardenGLWidget::dropEvent(QDropEvent* event) {
     // Convert drop position to grid coordinates
     QPoint gridPos = screenToGrid(event->pos());
 
-    // If this is a valid location, place the plant
+    // Place plant if valid location
     if (canPlacePlant(gridPos)) {
         Plant::Type type = static_cast<Plant::Type>(
                 event->mimeData()->data("application/x-plant").toInt());

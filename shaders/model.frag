@@ -7,6 +7,9 @@ in vec2 TexCoords;
 
 uniform sampler2D diffuseMap;
 uniform bool hasDiffuseMap;
+uniform bool isPreview;
+uniform float previewAlpha;
+uniform vec3 previewColor;
 
 struct Material {
     vec3 ambient;
@@ -21,23 +24,28 @@ uniform vec3 lightColor;
 uniform vec3 viewPos;
 
 void main() {
-    // Get base color either from texture or material properties
-    vec3 baseColor;
-    if (hasDiffuseMap) {
-        baseColor = texture(diffuseMap, TexCoords).rgb;
+    if (isPreview) {
+        // Preview rendering - simple lighting with highlight color
+        vec3 norm = normalize(Normal);
+        vec3 lightDir = normalize(lightPos - FragPos);
+        float diff = max(dot(norm, lightDir), 0.0);
+
+        // Use preview color with basic lighting
+        vec3 color = previewColor * (0.5 + 0.5 * diff);
+        FragColor = vec4(color, previewAlpha);
     } else {
-        baseColor = material.diffuse;
+        // Normal rendering - full material and texture
+        vec3 baseColor = hasDiffuseMap ? texture(diffuseMap, TexCoords).rgb : material.diffuse;
+
+        // Calculate lighting
+        vec3 norm = normalize(Normal);
+        vec3 lightDir = normalize(lightPos - FragPos);
+        float diff = max(dot(norm, lightDir), 0.0);
+
+        // Combine lighting
+        vec3 ambient = lightColor * material.ambient * baseColor;
+        vec3 diffuse = lightColor * diff * baseColor;
+
+        FragColor = vec4(ambient + diffuse, 1.0);
     }
-
-    // Calculate lighting
-    vec3 norm = normalize(Normal);
-    vec3 lightDir = normalize(lightPos - FragPos);
-    float diff = max(dot(norm, lightDir), 0.0);
-
-    // Combine ambient and diffuse lighting
-    vec3 ambient = lightColor * material.ambient * baseColor;
-    vec3 diffuse = lightColor * diff * baseColor;
-
-    // Final color
-    FragColor = vec4(ambient + diffuse, 1.0);
 }
