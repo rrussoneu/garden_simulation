@@ -28,6 +28,10 @@ set(HEADERS
         src/renderer/camera.h
         src/renderer/shader.h
         src/model/model.h
+        src/plant.cpp
+        src/plant.h
+        src/view/plantdragbutton.cpp
+        src/view/plantdragbutton.h
 )
 
 # Create executable
