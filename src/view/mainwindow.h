@@ -20,6 +20,9 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override = default;
 
+signals:
+    void temperatureChanged(float value);
+
 private slots:
     void handleTemperatureChange(int value);
 
