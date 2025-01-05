@@ -3,6 +3,7 @@
 //
 
 #include "mainwindow.h"
+#include "plantdragbutton.h"
 #include <QMenuBar>
 #include <QToolBar>
 #include <QStatusBar>
@@ -75,13 +76,20 @@ void MainWindow::createDockWindows() {
     QWidget* plantPalette = new QWidget(m_toolsDock);
     QVBoxLayout* plantLayout = new QVBoxLayout(plantPalette);
 
+    // Create plant buttons
+    auto addPlantButton = [&](Plant::Type type, const QString& name) {
+        PlantDragButton* button = new PlantDragButton(type, name, plantPalette);
+        button->setMinimumSize(64, 64);
+        plantLayout->addWidget(button);
+    };
 
+    addPlantButton(Plant::Type::Carrot, tr("Carrot"));
+    addPlantButton(Plant::Type::Pumpkin, tr("Pumpkin"));
+    addPlantButton(Plant::Type::Tomato, tr("Tomato"));
+
+    // Add spacer at the bottom
     plantLayout->addStretch();
-    m_toolsDock->setWidget(plantPalette);
-    addDockWidget(Qt::LeftDockWidgetArea, m_toolsDock);
 
-
-    plantLayout->addStretch();
     m_toolsDock->setWidget(plantPalette);
     addDockWidget(Qt::LeftDockWidgetArea, m_toolsDock);
 

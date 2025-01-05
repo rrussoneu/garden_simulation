@@ -4,6 +4,7 @@
 
 #include "gardenglwidget.h"
 #include <QMouseEvent>
+#include <QMimeData>
 
 
 GardenGLWidget::GardenGLWidget(QWidget* parent)
@@ -13,6 +14,8 @@ GardenGLWidget::GardenGLWidget(QWidget* parent)
         , m_moisture(0.5f)      // Default moisture (50%)
 {
     setFocusPolicy(Qt::StrongFocus);  // Enable key events
+    setAcceptDrops(true);
+    setAcceptDrops(true);
 }
 
 void GardenGLWidget::initializeGL() {
@@ -176,6 +179,44 @@ void GardenGLWidget::paintGL() {
             }
         }
     }
+
+    // Draw placed plants with their normal materials
+    for (int x = 0; x < GRID_SIZE; ++x) {
+        for (int z = 0; z < GRID_SIZE; ++z) {
+            const GridCell& cell = m_grid[x][z];
+            if (cell.plant) {
+                // Reset to default material properties for placed plants
+                m_modelShader->bind();
+                m_modelShader->setVec3("material.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+                m_modelShader->setVec3("material.diffuse", QVector3D(1.0f, 1.0f, 1.0f));
+                m_modelShader->setVec3("material.specular", QVector3D(0.5f, 0.5f, 0.5f));
+
+                cell.plant->getModel()->setPosition(cell.position);
+                cell.plant->getModel()->draw(m_modelShader.get());
+            }
+        }
+    }
+
+    // Draw preview model if active
+    if (m_isPreviewActive && m_previewModel) {
+        m_modelShader->bind();
+        m_previewModel->setPosition(m_previewPosition);
+
+        QPoint gridPos(m_previewPosition.x(), m_previewPosition.z());
+        bool isValid = canPlacePlant(gridPos);
+
+        // Use more subtle highlighting for preview
+        QVector3D highlightColor = isValid ?
+                                   QVector3D(0.2f, 1.0f, 0.2f) :  // Gentle green tint
+                                   QVector3D(1.0f, 0.2f, 0.2f);   // Gentle red tint
+
+        // Apply highlight while preserving some material properties
+        m_modelShader->setVec3("material.ambient", highlightColor * 0.3f);
+        m_modelShader->setVec3("material.diffuse", highlightColor);
+        m_modelShader->setVec3("material.specular", QVector3D(0.5f, 0.5f, 0.5f));
+
+        m_previewModel->draw(m_modelShader.get());
+    }
 }
 
 
@@ -235,3 +276,164 @@ QVector3D GardenGLWidget::screenToWorld(const QPoint &screenPos) {
     return camPos + rayDir * t; // Intersection point
 }
 
+void GardenGLWidget::dragEnterEvent(QDragEnterEvent* event) {
+    // Check if the drag contains plant data
+    if (event->mimeData()->hasFormat("application/x-plant")) {
+        // Extract the plant type from the mime data
+        Plant::Type type = static_cast<Plant::Type>(
+                event->mimeData()->data("application/x-plant").toInt());
+
+        // Create the preview model for this plant type
+        updatePreviewModel(type);
+
+        // Activate preview mode
+        m_isPreviewActive = true;
+
+        // Accept the drag operation
+        event->acceptProposedAction();
+    }
+}
+
+void GardenGLWidget::dragMoveEvent(QDragMoveEvent* event) {
+    // Convert screen coordinates to grid position
+    QPoint gridPos = screenToGrid(event->pos());
+
+    // Check if this is a valid placement location
+    bool isValid = canPlacePlant(gridPos);
+
+    // If we have an active preview model, update its position
+    if (m_isPreviewActive) {
+        // Center the preview model in the grid cell
+        m_previewPosition = QVector3D(
+                gridPos.x() + 0.5f,  // Center in X
+                0.0f,               // Ground level
+                gridPos.y() + 0.5f  // Center in Z
+        );
+
+        // The preview model's color will be updated in paintGL based on isValid
+    }
+
+    event->acceptProposedAction();
+    update();  // Trigger a redraw to show the updated preview
+}
+
+void GardenGLWidget::dragLeaveEvent(QDragLeaveEvent* event) {
+    // Deactivate preview when drag leaves the widget
+    m_isPreviewActive = false;
+    event->accept();
+    update();
+}
+
+void GardenGLWidget::dropEvent(QDropEvent* event) {
+    // Convert drop position to grid coordinates
+    QPoint gridPos = screenToGrid(event->pos());
+
+    // If this is a valid location, place the plant
+    if (canPlacePlant(gridPos)) {
+        Plant::Type type = static_cast<Plant::Type>(
+                event->mimeData()->data("application/x-plant").toInt());
+        addPlant(type, gridPos);
+    }
+
+    // Clean up preview state
+    m_isPreviewActive = false;
+    event->acceptProposedAction();
+    update();
+}
+
+
+QPoint GardenGLWidget::screenToGrid(const QPoint& screenPos) {
+    QVector3D worldPos = screenToWorld(screenPos);
+    return QPoint(static_cast<int>(worldPos.x()),
+                  static_cast<int>(worldPos.z()));
+}
+
+bool GardenGLWidget::canPlacePlant(const QPoint& gridPos) const {
+    if (gridPos.x() < 0 || gridPos.x() >= GRID_SIZE ||
+        gridPos.y() < 0 || gridPos.y() >= GRID_SIZE) {
+        return false;
+    }
+
+    const GridCell& cell = m_grid[gridPos.x()][gridPos.y()];
+    return cell.hasBed && !cell.plant;
+}
+
+
+
+bool GardenGLWidget::addPlant(Plant::Type type, const QPoint& gridPos) {
+    if (!canPlacePlant(gridPos)) {
+        return false;
+    }
+
+    QString basePath = "/Users/raphaelrusso/CLionProjects/garden_simulation/models/plants/";
+    QString modelName;
+    QString plantName;
+
+    switch (type) {
+        case Plant::Type::Carrot:
+            modelName = "carrot.obj";
+            plantName = "Carrot";
+            break;
+        case Plant::Type::Pumpkin:
+            modelName = "pumpkin.obj";
+            plantName = "Pumpkin";
+            break;
+        case Plant::Type::Tomato:
+            modelName = "tomato.obj";
+            plantName = "Tomato";
+            break;
+    }
+
+    auto newPlant = std::make_shared<Plant>(
+            type,
+            basePath + modelName,
+            plantName,
+            ""
+    );
+
+    QVector3D position(gridPos.x() + 0.5f, 0.0f, gridPos.y() + 0.5f);
+    m_grid[gridPos.x()][gridPos.y()].plant = newPlant;
+    m_grid[gridPos.x()][gridPos.y()].position = position;
+
+    newPlant->getModel()->setPosition(position);
+    newPlant->setGridPosition(gridPos);
+
+    qDebug() << "Added plant:" << plantName << "at position:" << position;
+
+    update();
+    return true;
+}
+
+void GardenGLWidget::removePlant(const QPoint& gridPos) {
+    if (gridPos.x() >= 0 && gridPos.x() < GRID_SIZE &&
+        gridPos.y() >= 0 && gridPos.y() < GRID_SIZE) {
+        m_grid[gridPos.x()][gridPos.y()].plant.reset();
+        update();
+    }
+}
+
+void GardenGLWidget::updatePreviewModel(Plant::Type type) {
+    QString basePath = "/Users/raphaelrusso/CLionProjects/garden_simulation/models/plants/";
+    QString modelName;
+
+    switch (type) {
+        case Plant::Type::Carrot:
+            modelName = "carrot.obj";
+            break;
+        case Plant::Type::Pumpkin:
+            modelName = "pumpkin.obj";
+            break;
+        case Plant::Type::Tomato:
+            modelName = "tomato.obj";
+            break;
+    }
+
+    m_previewModel = std::make_unique<Model>();
+    if (!m_previewModel->loadModel(basePath + modelName)) {
+        qDebug() << "Failed to load preview model:" << modelName;
+        return;
+    }
+
+    m_previewPlantType = type;
+    qDebug() << "Successfully loaded preview model:" << modelName;
+}

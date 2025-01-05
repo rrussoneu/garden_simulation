@@ -11,12 +11,14 @@
 #include "../renderer/shader.h"
 #include "../renderer/camera.h"
 #include "../model/model.h"
+#include "plant.h"
 #include <memory>
 
 struct GridCell {
     bool hasBed;
     QVector3D position;
     float moisture;  // Will be used later for soil moisture visualization
+    std::shared_ptr<Plant> plant;
 };
 
 class GardenGLWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core {
@@ -25,6 +27,10 @@ Q_OBJECT
 public:
     explicit GardenGLWidget(QWidget *parent = nullptr);
     ~GardenGLWidget() override = default;
+
+    bool canPlacePlant(const QPoint& gridPos) const;
+    bool addPlant(Plant::Type type, const QPoint& gridPos);
+    void removePlant(const QPoint& gridPos);
 
 signals:
     void gridClicked(QPoint gridPosition);
@@ -42,6 +48,11 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dragLeaveEvent(QDragLeaveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 private:
     static const int GRID_SIZE = 10;
@@ -72,6 +83,18 @@ private:
     // Utility functions
     QVector3D screenToWorld(const QPoint& screenPos);
     void handleGridClick(const QPoint& gridPos);
+
+    bool m_isPreviewActive = false;
+    Plant::Type m_previewPlantType;
+    std::unique_ptr<Model> m_previewModel;
+    QVector3D m_previewPosition;
+
+    // Helper method to handle preview model creation and updates
+    void updatePreviewModel(Plant::Type type);
+
+
+
+    QPoint screenToGrid(const QPoint& screenPos);
 };
 
 

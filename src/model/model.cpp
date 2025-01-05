@@ -87,7 +87,7 @@ bool Model::loadModel(const QString &objPath) {
                 QStringList indices = parts[i].split('/');
 
                 Vertex vertex;
-                // OBJ indices are 1-based
+                // OBJ indices are 1 based
                 int posIdx = indices[0].toInt() - 1;
                 vertex.position = positions[posIdx];
 
@@ -158,6 +158,8 @@ bool Model::parseMTL(const QString& mtlPath) {
     }
 
     qDebug() << "Loading material from:" << mtlPath;
+
+
 
     // Set default material values
     m_material.ambient = QVector3D(0.1f, 0.1f, 0.1f);   // Darker ambient by default
@@ -367,23 +369,30 @@ void Model::draw(Shader* shader) {
     shader->release();
 }
 
-GLuint Model::loadTexture(const QString &path) {
-    GLuint textureID;
-    glGenTextures(1, &textureID);
+GLuint Model::loadTexture(const QString& path) {
+    qDebug() << "Starting texture load from:" << path;
 
     QImage image(path);
     if (image.isNull()) {
-        qDebug() << "Failed to load texture:" << path;
+        qDebug() << "Failed to load texture image from:" << path;
+        qDebug() << "Current working directory:" << QDir::currentPath();
         return 0;
     }
 
-    // Convert
-    image = image.convertToFormat(QImage::Format_RGBA8888);
+    // Before conversion
+    qDebug() << "Original image format:" << image.format();
+    qDebug() << "Original image size:" << image.size();
 
+    // Convert and flip image
+    image = image.convertToFormat(QImage::Format_RGBA8888);
+    image = image.mirrored();  // OpenGL needs textures flipped vertically
+
+    GLuint textureID;
+    glGenTextures(1, &textureID);
     glBindTexture(GL_TEXTURE_2D, textureID);
+
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
-    glGenerateMipmap(GL_TEXTURE_2D);
 
     // Set texture parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -391,5 +400,14 @@ GLuint Model::loadTexture(const QString &path) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    // Check for OpenGL errors
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        qDebug() << "OpenGL error after texture load:" << err;
+    }
+
+    qDebug() << "Successfully created texture with ID:" << textureID;
     return textureID;
 }
