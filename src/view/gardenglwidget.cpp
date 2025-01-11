@@ -7,8 +7,9 @@
 #include <QMimeData>
 
 
-GardenGLWidget::GardenGLWidget(QWidget* parent)
+GardenGLWidget::GardenGLWidget(GardenController* controller, QWidget* parent)
         : QOpenGLWidget(parent)
+        , m_controller(controller)
         , m_camera(std::make_unique<Camera>())
         , m_gridShader(nullptr)
         , m_modelShader(nullptr)
@@ -19,6 +20,15 @@ GardenGLWidget::GardenGLWidget(QWidget* parent)
     setFocusPolicy(Qt::StrongFocus);  // Enable key events
     setAcceptDrops(true);
 
+    // Connect to controller signals
+    connect(controller, &GardenController::plantAdded,
+            this, &GardenGLWidget::onPlantAdded);
+    connect(controller, &GardenController::plantRemoved,
+            this, &GardenGLWidget::onPlantRemoved);
+    connect(controller, &GardenController::temperatureChanged,
+            this, &GardenGLWidget::onTemperatureChanged);
+    connect(controller, &GardenController::moistureChanged,
+            this, &GardenGLWidget::onMoistureChanged);
 }
 
 
@@ -192,38 +202,21 @@ void GardenGLWidget::paintGL() {
     m_modelShader->setVec3("viewPos", m_camera->getPosition());
     m_modelShader->setBool("isPreview", false); // Beds and placed plants don't have any change with the preview state
 
-    for (int x = 0; x < GRID_SIZE; ++x) {
-        for (int z = 0; z < GRID_SIZE; ++z) {
-            const GridCell& cell = m_grid[x][z];
-            if (cell.hasBed) {
-                // Center the bed in the grid cell
-                QVector3D position(x + 0.5f, 0.0f, z + 0.5f);  // Add 0.5 to center in cell
-                m_bedModel->setPosition(position);
+    const GardenModel* gardenModel = m_controller->getModel();
+    for (int x = 0; x < gardenModel->getGridSize(); ++x) {
+        for (int z = 0; z < gardenModel->getGridSize(); ++z) {
+            QPoint pos(x, z);
 
-                // Potentially rotate for alignment
-                m_bedModel->setRotation(QVector3D(0.0f, 0.0f, 0.0f));
+            // Draw bed
+            QVector3D position(x + 0.5f, 0.0f, z + 0.5f);
+            m_bedModel->setPosition(position);
+            m_bedModel->draw(m_modelShader.get());
 
-                // Scale if needed to fit grid
-                m_bedModel->setScale(QVector3D(1.0f, 1.0f, 1.0f));
-
-                m_bedModel->draw(m_modelShader.get());
-            }
-        }
-    }
-
-    // Draw placed plants with their normal materials
-    for (int x = 0; x < GRID_SIZE; ++x) {
-        for (int z = 0; z < GRID_SIZE; ++z) {
-            const GridCell& cell = m_grid[x][z];
-            if (cell.plant) {
-                // Reset to default material properties for placed plants
-                m_modelShader->bind();
-                m_modelShader->setVec3("material.ambient", QVector3D(0.2f, 0.2f, 0.2f));
-                m_modelShader->setVec3("material.diffuse", QVector3D(1.0f, 1.0f, 1.0f));
-                m_modelShader->setVec3("material.specular", QVector3D(0.5f, 0.5f, 0.5f));
-
-                cell.plant->getModel()->setPosition(cell.position);
-                cell.plant->getModel()->draw(m_modelShader.get());
+            // Draw plant if present
+            Plant* plant = gardenModel->getPlant(pos);
+            if (plant) {
+                plant->getModel()->setPosition(position);
+                plant->getModel()->draw(m_modelShader.get());
             }
         }
     }
@@ -410,11 +403,10 @@ void GardenGLWidget::dropEvent(QDropEvent* event) {
     // Convert drop position to grid coordinates
     QPoint gridPos = screenToGrid(event->pos());
 
-    // Place plant if valid location
-    if (canPlacePlant(gridPos)) {
+    if (m_controller->canPlacePlant(gridPos)) {
         Plant::Type type = static_cast<Plant::Type>(
                 event->mimeData()->data("application/x-plant").toInt());
-        addPlant(type, gridPos);
+        m_controller->addPlant(type, gridPos);
     }
 
     // Clean up preview state
@@ -533,10 +525,6 @@ void GardenGLWidget::updatePreviewModel(Plant::Type type) {
     qDebug() << "Successfully loaded preview model:" << modelName;
 }
 
-void GardenGLWidget::setTemperature(float temp) {
-    m_temperature = temp;
-    qDebug() << "GL widget temp: " << m_temperature;
-}
 
 QVector3D GardenGLWidget::calculateSunColor(float temperature) {
     // Normalize temperature to 0-1 range (30F to 90F)
@@ -636,4 +624,25 @@ void GardenGLWidget::drawCube(GLuint& vao, GLuint& vbo) {
 
     // Draw the cube
     glDrawArrays(GL_TRIANGLES, 0, 36);
+}
+
+
+
+// Model update handlers
+void GardenGLWidget::onPlantAdded(const QPoint& position, Plant::Type type) {
+    update();
+}
+
+void GardenGLWidget::onPlantRemoved(const QPoint& position) {
+    update();
+}
+
+void GardenGLWidget::onTemperatureChanged(float temperature) {
+    m_temperature = temperature;
+    update();
+}
+
+void GardenGLWidget::onMoistureChanged(float moisture) {
+    m_moisture = moisture;
+    update();
 }

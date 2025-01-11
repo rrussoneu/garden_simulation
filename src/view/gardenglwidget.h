@@ -12,6 +12,7 @@
 #include "../renderer/camera.h"
 #include "../model/model.h"
 #include "src/model/plant.h"
+#include "controller/gardencontroller.h"
 #include <memory>
 
 struct GridCell {
@@ -25,7 +26,7 @@ class GardenGLWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
 Q_OBJECT
 
 public:
-    explicit GardenGLWidget(QWidget *parent = nullptr);
+    explicit GardenGLWidget(GardenController* controller, QWidget* parent = nullptr);
     ~GardenGLWidget() override = default;
 
     bool canPlacePlant(const QPoint& gridPos) const;
@@ -35,10 +36,11 @@ public:
 signals:
     void gridClicked(QPoint gridPosition);
 
-public slots:
-    // These will be connected to UI controls later
-    void setTemperature(float temp);
-    void setMoisture(float moisture) { m_moisture = moisture; update(); }
+private slots:
+    void onPlantAdded(const QPoint& position, Plant::Type type);
+    void onPlantRemoved(const QPoint& position);
+    void onTemperatureChanged(float temperature);
+    void onMoistureChanged(float moisture);
 
 protected:
     void initializeGL() override;
@@ -56,6 +58,8 @@ protected:
 
 private:
     static const int GRID_SIZE = 10;
+
+    GardenController* m_controller;
 
     // OpenGL objects
     std::unique_ptr<Shader> m_gridShader;
