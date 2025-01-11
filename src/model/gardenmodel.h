@@ -24,7 +24,7 @@ public:
     bool addPlant(Plant::Type type, const QPoint& position);
     bool removePlant(const QPoint& position);
     bool canPlacePlant(const QPoint& position) const;
-    Plant* getPlant(const QPoint& position);
+    Plant* getPlant(const QPoint& position) const;
 
     // Grid management
     int getGridSize() const { return m_gridSize; }
