@@ -19,7 +19,11 @@ set(SOURCES
         src/renderer/shader.cpp
         src/renderer/camera.cpp
         src/model/model.cpp
-
+        src/view/plantdragbutton.cpp
+        src/model/mocksensor.cpp
+        src/controller/gardencontroller.cpp
+        src/model/plant.cpp
+        src/model/gardenmodel.cpp
 )
 
 set(HEADERS
@@ -28,10 +32,11 @@ set(HEADERS
         src/renderer/camera.h
         src/renderer/shader.h
         src/model/model.h
-        src/plant.cpp
-        src/plant.h
-        src/view/plantdragbutton.cpp
+        src/model/plant.h
         src/view/plantdragbutton.h
+        src/model/sensordata.h
+        src/controller/gardencontroller.h
+        src/model/gardenmodel.h
 )
 
 # Create executable

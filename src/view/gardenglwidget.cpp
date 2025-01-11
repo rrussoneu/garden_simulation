@@ -10,6 +10,9 @@
 GardenGLWidget::GardenGLWidget(QWidget* parent)
         : QOpenGLWidget(parent)
         , m_camera(std::make_unique<Camera>())
+        , m_gridShader(nullptr)
+        , m_modelShader(nullptr)
+        , m_sunShader(nullptr)
         , m_temperature(60.0f)  // Default temperature (°F)
         , m_moisture(0.5f)      // Default moisture (50%)
 {
@@ -17,6 +20,8 @@ GardenGLWidget::GardenGLWidget(QWidget* parent)
     setAcceptDrops(true);
 
 }
+
+
 
 void GardenGLWidget::initializeGL() {
     initializeOpenGLFunctions();
@@ -29,6 +34,13 @@ void GardenGLWidget::initializeGL() {
     initializeGridLines();
     initializeModels();
     initializeGridCells();
+    initializeSun();
+}
+
+void GardenGLWidget::initializeSun() {
+    // Create VAO and VBO for the sun
+    glGenVertexArrays(1, &m_sunVAO);
+    glGenBuffers(1, &m_sunVBO);
 }
 
 void GardenGLWidget::initializeShaders() {
@@ -53,6 +65,16 @@ void GardenGLWidget::initializeShaders() {
         return;
     }
     qDebug() << "Model shader compiled successfully";
+
+    m_sunShader = std::make_unique<Shader>(
+            "/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/sun.vert",
+            "/Users/raphaelrusso/CLionProjects/garden_simulation/shaders/sun.frag"
+    );
+    if (!m_sunShader->compile()) {
+        qDebug() << "Failed to compile sun shader";
+        return;
+    }
+    qDebug() << "Plant shader compiled successfully";
 }
 
 void GardenGLWidget::initializeGridLines() {
@@ -143,8 +165,9 @@ void GardenGLWidget::paintGL() {
     m_gridShader->setMat4("view", view);
     m_gridShader->setMat4("projection", projection);
 
-    QVector3D lightPos(5.0f, 5.0f, 5.0f);  // Will be updated with sun position later
-    QVector3D lightColor(1.0f, 1.0f, 1.0f); // Will be temperature-based later
+    // Grid isn't affected by the sun position or temperature / color
+    QVector3D lightPos(5.0f, 5.0f, 5.0f);
+    QVector3D lightColor(1.0f, 1.0f, 1.0f);
     m_gridShader->setVec3("lightPos", lightPos);
     m_gridShader->setVec3("lightColor", lightColor);
     m_gridShader->setVec3("gridColor", QVector3D(0.8f, 0.8f, 0.8f));
@@ -155,11 +178,16 @@ void GardenGLWidget::paintGL() {
     glBindVertexArray(m_gridVAO);
     glDrawArrays(GL_LINES, 0, (GRID_SIZE + 1) * 4);
 
-    // Draw garden beds
+    renderSun(view, projection);
+
+    // Update light properties based on sun
+    lightColor = calculateSunColor(m_temperature);
+
+    // Use sun position and color for lighting other objects
     m_modelShader->bind();
     m_modelShader->setMat4("view", view);
     m_modelShader->setMat4("projection", projection);
-    m_modelShader->setVec3("lightPos", lightPos);
+    m_modelShader->setVec3("lightPos", m_sunPosition);
     m_modelShader->setVec3("lightColor", lightColor);
     m_modelShader->setVec3("viewPos", m_camera->getPosition());
     m_modelShader->setBool("isPreview", false); // Beds and placed plants don't have any change with the preview state
@@ -172,7 +200,7 @@ void GardenGLWidget::paintGL() {
                 QVector3D position(x + 0.5f, 0.0f, z + 0.5f);  // Add 0.5 to center in cell
                 m_bedModel->setPosition(position);
 
-                // If needed, add rotation to align with grid
+                // Potentially rotate for alignment
                 m_bedModel->setRotation(QVector3D(0.0f, 0.0f, 0.0f));
 
                 // Scale if needed to fit grid
@@ -237,6 +265,37 @@ void GardenGLWidget::paintGL() {
         glDepthMask(GL_TRUE);
         m_modelShader->setBool("isPreview", false);
     }
+}
+
+void GardenGLWidget::renderSun(const QMatrix4x4& view, const QMatrix4x4& projection) {
+    // Bind sun shader
+    m_sunShader->bind();
+    m_sunPosition = QVector3D(GRID_SIZE/2.0f, 8.0f, GRID_SIZE/2.0f);  // Center above garden
+
+    // Create model matrix for sun
+    QMatrix4x4 model;
+    model.translate(m_sunPosition);
+    model.scale(1.0f);
+
+    // Set shader uniforms
+    m_sunShader->setMat4("model", model);
+    m_sunShader->setMat4("view", view);
+    m_sunShader->setMat4("projection", projection);
+
+    // Calculate sun color based on temperature
+    QVector3D sunColor = calculateSunColor(m_temperature);
+    float intensity = 1.0f + (m_temperature - 60.0f) / 30.0f;  // Brighter when hotter
+
+    // Clamp intensity
+    intensity = std::max(0.5f, std::min(2.0f, intensity));
+
+    m_sunShader->setVec3("sunColor", sunColor);
+    m_sunShader->setFloat("intensity", intensity);
+
+    // Draw the sun cube
+    drawCube(m_sunVAO, m_sunVBO);
+
+    m_sunShader->release();
 }
 
 
@@ -472,4 +531,109 @@ void GardenGLWidget::updatePreviewModel(Plant::Type type) {
 
     m_previewPlantType = type;
     qDebug() << "Successfully loaded preview model:" << modelName;
+}
+
+void GardenGLWidget::setTemperature(float temp) {
+    m_temperature = temp;
+    qDebug() << "GL widget temp: " << m_temperature;
+}
+
+QVector3D GardenGLWidget::calculateSunColor(float temperature) {
+    // Normalize temperature to 0-1 range (30F to 90F)
+    float t = (temperature - 30.0f) / 60.0f;
+    t = std::max(0.0f, std::min(1.0f, t));  // Clamp to 0-1
+
+    // Define color ranges for different temperatures
+    QVector3D coldColor(0.6f, 0.7f, 1.0f);    // Cool blueish
+    QVector3D midColor(1.0f, 0.95f, 0.8f);    // Neutral warm
+    QVector3D hotColor(1.0f, 0.6f, 0.4f);     // Warm orangey red
+
+    // Interpolate between colors
+    if (t < 0.5f) {
+        return interpolateColors(coldColor, midColor, t * 2.0f);
+    } else {
+        return interpolateColors(midColor, hotColor, (t - 0.5f) * 2.0f);
+    }
+}
+
+QVector3D GardenGLWidget::interpolateColors(const QVector3D& color1, const QVector3D& color2, float t) {
+    // Clamp t to [0,1] range
+    t = std::max(0.0f, std::min(1.0f, t));
+
+    // Linearly interpolate each component
+    return QVector3D(
+            color1.x() + (color2.x() - color1.x()) * t,
+            color1.y() + (color2.y() - color1.y()) * t,
+            color1.z() + (color2.z() - color1.z()) * t
+    );
+}
+
+void GardenGLWidget::drawCube(GLuint& vao, GLuint& vbo) {
+    // Define vertices for a complete cube
+    static const float vertices[] = {
+            // Front face         // Normal
+            -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,  // Bottom left
+            0.5f, -0.5f, -0.5f,  0.0f, 0.0f, -1.0f,  // Bottom right
+            0.5f, 0.5f, -0.5f,   0.0f, 0.0f, -1.0f,  // Top right
+            -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,  // Bottom left
+            0.5f, 0.5f, -0.5f,   0.0f, 0.0f, -1.0f,  // Top right
+            -0.5f, 0.5f, -0.5f,  0.0f, 0.0f, -1.0f,  // Top left
+
+            // Back face
+            -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,
+            0.5f, -0.5f, 0.5f,   0.0f, 0.0f, 1.0f,
+            0.5f, 0.5f, 0.5f,    0.0f, 0.0f, 1.0f,
+            -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f,
+            0.5f, 0.5f, 0.5f,    0.0f, 0.0f, 1.0f,
+            -0.5f, 0.5f, 0.5f,   0.0f, 0.0f, 1.0f,
+
+            // Left face
+            -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, -1.0f, 0.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f,  -1.0f, 0.0f, 0.0f,
+            -0.5f, -0.5f, 0.5f,  -1.0f, 0.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f,  -1.0f, 0.0f, 0.0f,
+            -0.5f, 0.5f, 0.5f,   -1.0f, 0.0f, 0.0f,
+
+            // Right face
+            0.5f, -0.5f, 0.5f,   1.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, -0.5f,  1.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, -0.5f,   1.0f, 0.0f, 0.0f,
+            0.5f, -0.5f, 0.5f,   1.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, -0.5f,   1.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, 0.5f,    1.0f, 0.0f, 0.0f,
+
+            // Top face
+            -0.5f, 0.5f, -0.5f,  0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, -0.5f,   0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.5f,    0.0f, 1.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f,  0.0f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.5f,    0.0f, 1.0f, 0.0f,
+            -0.5f, 0.5f, 0.5f,   0.0f, 1.0f, 0.0f,
+
+            // Bottom face
+            -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+            0.5f, -0.5f, -0.5f,  0.0f, -1.0f, 0.0f,
+            0.5f, -0.5f, 0.5f,   0.0f, -1.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,
+            0.5f, -0.5f, 0.5f,   0.0f, -1.0f, 0.0f,
+            -0.5f, -0.5f, 0.5f,  0.0f, -1.0f, 0.0f
+    };
+
+    // Bind and update buffer data
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Normal attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
+                          (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Draw the cube
+    glDrawArrays(GL_TRIANGLES, 0, 36);
 }

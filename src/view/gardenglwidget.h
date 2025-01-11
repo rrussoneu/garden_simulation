@@ -11,7 +11,7 @@
 #include "../renderer/shader.h"
 #include "../renderer/camera.h"
 #include "../model/model.h"
-#include "plant.h"
+#include "src/model/plant.h"
 #include <memory>
 
 struct GridCell {
@@ -37,7 +37,7 @@ signals:
 
 public slots:
     // These will be connected to UI controls later
-    void setTemperature(float temp) { m_temperature = temp; update(); }
+    void setTemperature(float temp);
     void setMoisture(float moisture) { m_moisture = moisture; update(); }
 
 protected:
@@ -62,10 +62,20 @@ private:
     std::unique_ptr<Shader> m_modelShader;
     std::unique_ptr<Model> m_bedModel;
     std::unique_ptr<Camera> m_camera;
+    std::unique_ptr<Shader> m_sunShader;
 
     // Grid rendering
     GLuint m_gridVAO, m_gridVBO;
     std::vector<std::vector<GridCell>> m_grid;
+
+    // Sun rendering
+    GLuint m_sunVAO, m_sunVBO;
+    QVector3D m_sunPosition;
+    void initializeSun();
+    QVector3D calculateSunColor(float temperature);
+    QVector3D interpolateColors(const QVector3D& color1, const QVector3D& color2, float t);
+    void renderSun(const QMatrix4x4 &view, const QMatrix4x4 &projection);
+    void drawCube(GLuint &vao, GLuint &vbo);
 
     // Environmental parameters
     float m_temperature;  // Will control light color
@@ -95,6 +105,11 @@ private:
 
 
     QPoint screenToGrid(const QPoint& screenPos);
+
+
+
+
+
 };
 
 

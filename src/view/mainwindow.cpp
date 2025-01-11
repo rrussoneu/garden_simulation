@@ -139,12 +139,15 @@ void MainWindow::createToolbar() {
 }
 
 void MainWindow::setupConnections() {
-}
+    connect(m_tempSlider, &QSlider::valueChanged, this, &MainWindow::handleTemperatureChange);
+    connect(this, &MainWindow::temperatureChanged, m_gardenWidget, &GardenGLWidget::setTemperature);}
 
 void MainWindow::handleTemperatureChange(int value) {
     // Update the temperature label
-    m_tempLabel->setText(tr("Temperature: %1°F").arg(value));
+    float temperature = static_cast<float>(value);
+    m_tempLabel->setText(tr("Temperature: %1°F").arg(temperature));
 
+    emit temperatureChanged(temperature);
     // Force a redraw of the garden scene
     //m_gardenWidget->update();
 
