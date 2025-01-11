@@ -6,6 +6,7 @@
 #define GARDEN_SIMULATION_SENSORDATA_H
 
 #include <QDateTime>
+#include <QObject>
 
 struct SensorData {
     float temperature;
@@ -19,6 +20,7 @@ class SensorInterface : public QObject {
 Q_OBJECT
 
 public:
+    explicit SensorInterface(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~SensorInterface() = default;
     virtual void startReading() = 0;
     virtual void stopReading() = 0;

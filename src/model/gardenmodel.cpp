@@ -3,8 +3,6 @@
 //
 
 #include "gardenmodel.h"
-
-#include "gardenmodel.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>

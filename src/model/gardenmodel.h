@@ -50,7 +50,7 @@ signals:
     void gardenLoaded();
     void gardenSaved();
 
-private slots:
+public slots:
     void handleTemperatureUpdate(float value);
     void handleMoistureUpdate(float value);
 
