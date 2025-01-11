@@ -8,7 +8,7 @@
 #include <QPushButton>
 #include <QDrag>
 #include <QMimeData>
-#include "plant.h"
+#include "src/model/plant.h"
 
 class PlantDragButton : public QPushButton {
 Q_OBJECT

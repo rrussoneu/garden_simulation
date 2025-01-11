@@ -11,7 +11,7 @@
 #include "../renderer/shader.h"
 #include "../renderer/camera.h"
 #include "../model/model.h"
-#include "plant.h"
+#include "src/model/plant.h"
 #include <memory>
 
 struct GridCell {
