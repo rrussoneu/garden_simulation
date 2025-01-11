@@ -16,11 +16,12 @@
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     // Create and set up the central OpenGL widget
-    m_gardenWidget = new GardenGLWidget(this);
+
+    m_controller = std::make_unique<GardenController>(std::make_unique<GardenModel>(10), this);
+
+    m_gardenWidget = new GardenGLWidget(m_controller.get(), this);
     setCentralWidget(m_gardenWidget);
 
-    m_model = std::make_unique<GardenModel>(10);  // 10x10 grid
-    m_controller = std::make_unique<GardenController>(std::make_unique<GardenModel>(10), this);
 
     createDockWindows();
     createMenus();
@@ -191,9 +192,11 @@ void MainWindow::handleTemperatureChange(int value) {
     float temperature = static_cast<float>(value);
     m_tempLabel->setText(tr("Temperature: %1°F").arg(temperature));
 
-    emit temperatureChanged(temperature);
+    //emit temperatureChanged(temperature);
     // Force a redraw of the garden scene
     //m_gardenWidget->update();
+
+    m_controller->setTemperature(temperature);
 
     // Debug output to verify temperature changes
     qDebug() << "Temperature updated to:" << value << "°F";
@@ -208,10 +211,10 @@ void MainWindow::handleMoistureChange(int value) {
 
 void MainWindow::handleTemperatureSensorToggle(bool enabled) {
     m_tempSlider->setEnabled(!enabled);
-    //m_controller->toggleTemperatureSensor(enabled);
+    m_controller->toggleTemperatureSensor(enabled);
 }
 
 void MainWindow::handleMoistureSensorToggle(bool enabled) {
     m_moistureSlider->setEnabled(!enabled);
-    //m_controller->toggleMoistureSensor(enabled);
+    m_controller->toggleMoistureSensor(enabled);
 }
