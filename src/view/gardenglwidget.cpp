@@ -238,10 +238,13 @@ void GardenGLWidget::paintGL() {
         bool isWithinGrid = (gridPos.x() >= 0 && gridPos.x() < GRID_SIZE &&
                              gridPos.y() >= 0 && gridPos.y() < GRID_SIZE);
 
+
         // Check if position is valid for placement
         bool isValidPlacement = isWithinGrid &&
-                                m_grid[gridPos.x()][gridPos.y()].hasBed &&
-                                !m_grid[gridPos.x()][gridPos.y()].plant;
+                                //m_grid[gridPos.x()][gridPos.y()].hasBed &&
+                                //!m_grid[gridPos.x()][gridPos.y()].plant;
+                                gardenModel->canPlacePlant(gridPos);
+
 
         QVector3D highlightColor = isValidPlacement ?
                                    QVector3D(0.0f, 1.0f, 0.0f) :  // Valid placement
