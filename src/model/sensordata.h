@@ -26,8 +26,22 @@ public:
     virtual void stopReading() = 0;
     virtual bool isReading() const = 0;
 
+    float getMCurrentValue() const {return m_currentValue;}
+
+    float getMMinValue() const {return m_minValue;};
+
+    float getMMaxValue() const {return m_maxValue;};
+
 signals:
     void dataUpdated(float value);
+
+protected:
+    float m_minValue;
+    float m_maxValue;
+    float m_currentValue;
+
+
+
 };
 
 #endif // GARDEN_SIMULATION_SENSORDATA_H

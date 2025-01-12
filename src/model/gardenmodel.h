@@ -32,7 +32,10 @@ public:
 
     // Sensor management
     void setTemperatureSensor(std::unique_ptr<SensorInterface> sensor);
+    SensorInterface* getTemperatureSensor() const { return m_temperatureSensor.get(); }
     void setMoistureSensor(std::unique_ptr<SensorInterface> sensor);
+    SensorInterface* getMoistureSensor() const { return m_moistureSensor.get(); }
+
 
     // Current state accessors
     float getCurrentTemperature() const { return m_sensorData.temperature; }

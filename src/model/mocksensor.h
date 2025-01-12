@@ -28,8 +28,6 @@ private:
     QTimer m_updateTimer;
     bool m_isReading = false;
     float m_currentValue;
-    float m_minValue;
-    float m_maxValue;
 };
 
 #endif // GARDEN_SIMULATION_MOCKSENSOR_H
