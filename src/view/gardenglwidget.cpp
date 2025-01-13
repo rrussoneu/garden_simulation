@@ -17,6 +17,7 @@ GardenGLWidget::GardenGLWidget(GardenController* controller, QWidget* parent)
         , m_temperature(60.0f)  // Default temperature (°F)
         , m_moisture(0.5f)      // Default moisture (50%)
 {
+    setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);  // Enable key events
     setAcceptDrops(true);
 
@@ -261,6 +262,29 @@ void GardenGLWidget::paintGL() {
         glDepthMask(GL_TRUE);
         m_modelShader->setBool("isPreview", false);
     }
+
+    if (m_deleteModeActive) {
+        // Save current OpenGL state
+        GLint previousDepthFunc;
+        glGetIntegerv(GL_DEPTH_FUNC, &previousDepthFunc);
+        GLboolean depthMask;
+        glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
+
+        // Setup for transparent highlighting
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(GL_FALSE);   // Don't write to depth buffer
+
+        if (m_controller->getModel()->getPlant(m_hoveredCell)) {
+            renderPlantHighlight(m_hoveredCell, QVector3D(1.0f, 1.0f, 0.0f));
+        }
+
+        // Restore previous state
+        glDepthFunc(previousDepthFunc);
+        glDepthMask(depthMask);
+        glDisable(GL_BLEND);
+    }
 }
 
 void GardenGLWidget::renderSun(const QMatrix4x4& view, const QMatrix4x4& projection) {
@@ -299,13 +323,32 @@ void GardenGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos = event->pos();
     if (event->button() == Qt::LeftButton) {
         QVector3D worldPos = screenToWorld(event->pos());
-        emit gridClicked(QPoint(worldPos.x(), worldPos.z()));
+        QPoint gridPos(worldPos.x(), worldPos.z());
+
+        if (m_deleteModeActive) {
+            handleDeleteModeClick(gridPos);
+        } else {
+            emit gridClicked(gridPos);
+        }
     }
 
 }
 void GardenGLWidget::mouseMoveEvent(QMouseEvent *event) {
     QPoint delta = event->pos() - m_lastPos;
 
+    if (m_deleteModeActive) {
+        // Always update hover position in delete mode
+        QPoint newHoveredCell = screenToGrid(event->pos());
+
+        // Only update if the position actually changed
+        if (newHoveredCell != m_hoveredCell) {
+            m_hoveredCell = newHoveredCell;
+
+            qDebug() << "Hovering over cell:" << m_hoveredCell;
+
+            update();
+        }
+    }
     if (event->buttons() & Qt::RightButton) {
         m_camera->orbit(delta.x(), delta.y());
 
@@ -648,4 +691,64 @@ void GardenGLWidget::onTemperatureChanged(float temperature) {
 void GardenGLWidget::onMoistureChanged(float moisture) {
     m_moisture = moisture;
     update();
+}
+
+void GardenGLWidget::setDeleteMode(bool enabled) {
+    m_deleteModeActive = enabled;
+    // Change cursor to indicate delete mode
+    setCursor(enabled ? Qt::CrossCursor : Qt::ArrowCursor);
+    update();
+}
+
+void GardenGLWidget::handleDeleteModeClick(const QPoint& gridPos) {
+    // Check if there's a plant at this position
+    if (m_controller->getModel()->getPlant(gridPos)) {
+        m_controller->removePlant(gridPos);
+    }
+}
+
+void GardenGLWidget::renderPlantHighlight(const QPoint& position, const QVector3D& color) {
+    Plant* plant = m_controller->getModel()->getPlant(position);
+    if (!plant) return;
+
+    // Save OpenGL state
+    GLint previousDepthFunc;
+    glGetIntegerv(GL_DEPTH_FUNC, &previousDepthFunc);
+
+    // Set up highlight rendering
+    m_modelShader->bind();
+    m_modelShader->setBool("isPreview", true);
+    m_modelShader->setVec3("previewColor", color);
+    m_modelShader->setFloat("previewAlpha", 0.6f);
+
+    // Get the original model's transform and modify it for the highlight
+    QMatrix4x4 transform = plant->getModel()->getModelMatrix();
+    transform.scale(1.05f);  // Scale up from the original transform
+    m_modelShader->setMat4("model", transform);
+
+    // Draw using the model's own draw method
+    plant->getModel()->draw(m_modelShader.get());
+
+    // Restore previous state
+    glDepthFunc(previousDepthFunc);
+    m_modelShader->setBool("isPreview", false);
+}
+
+void GardenGLWidget::enterEvent(QEnterEvent* event) {
+    // Mouse entered the widget
+    if (m_deleteModeActive) {
+        // Start tracking mouse position
+        QPoint pos = mapFromGlobal(QCursor::pos());
+        m_hoveredCell = screenToGrid(pos);
+        update();
+    }
+}
+
+void GardenGLWidget::leaveEvent(QEvent* event) {
+    // Mouse left the widget
+    if (m_deleteModeActive) {
+        // Clear hover state
+        m_hoveredCell = QPoint(-1, -1);
+        update();
+    }
 }

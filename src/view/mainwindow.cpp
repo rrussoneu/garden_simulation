@@ -39,13 +39,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 void MainWindow::createMenus() {
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
 
-    QAction* newAction = fileMenu->addAction(tr("&New Garden"), this, [this]() {
-
-    });
-
-    newAction->setShortcut(QKeySequence::New);
 
 
+    QAction* saveAction = fileMenu->addAction(tr("&Save Garden..."), this, &MainWindow::handleSaveGarden);
+    saveAction->setShortcut(QKeySequence::Save);
+
+    QAction* loadAction = fileMenu->addAction(tr("&Load Garden..."), this, &MainWindow::handleLoadGarden);
+    loadAction->setShortcut(QKeySequence::Open);
+
+    fileMenu->addSeparator();
+    fileMenu->addAction(tr("E&xit"), qApp, &QApplication::closeAllWindows)
+            ->setShortcuts(QKeySequence::Quit);
 
     fileMenu->addSeparator();
 
@@ -146,18 +150,32 @@ void MainWindow::createToolbar() {
     QToolBar* toolbar = addToolBar(tr("Garden Tools"));
     toolbar->setMovable(false);
 
-    // Common actions
-    toolbar->addAction(QIcon(":/icons/new.png"), tr("New Garden"), [this]() {
 
-    });
+    // Create Save Garden action
+    QAction* saveAction = toolbar->addAction(QIcon(":/icons/save.png"), tr("Save Garden"),
+                                             this, &MainWindow::handleSaveGarden);
+    saveAction->setStatusTip(tr("Save the current garden to a file"));
 
+    // Create Load Garden action
+    QAction* loadAction = toolbar->addAction(QIcon(":/icons/load.png"), tr("Load Garden"),
+                                             this, &MainWindow::handleLoadGarden);
+    loadAction->setStatusTip(tr("Load a garden from a file"));
 
     toolbar->addSeparator();
 
-    // Add view control actions
-    toolbar->addAction(QIcon(":/icons/reset.png"), tr("Reset View"), [this]() {
-        // Implement view reset
+    // Add delete mode toggle button
+    QAction* deleteModeAction = toolbar->addAction(QIcon(":/icons/delete.png"), tr("Remove Plants"));
+    deleteModeAction->setCheckable(true);  // Makes it a toggle button
+    deleteModeAction->setStatusTip(tr("Click to enter plant removal mode"));
+
+    connect(deleteModeAction, &QAction::toggled, this, [this](bool checked) {
+        m_gardenWidget->setDeleteMode(checked);
+        statusBar()->showMessage(
+                checked ? tr("Click on plants to remove them") : tr("Ready"),
+                checked ? 0 : 3000  // Keep message while in delete mode
+        );
     });
+
 }
 
 void MainWindow::setupConnections() {
@@ -185,6 +203,24 @@ void MainWindow::setupConnections() {
                 }
             });
 
+    connect(m_controller.get(), &GardenController::gardenSaved,
+            this, [this]() {
+            });
+
+    connect(m_controller.get(), &GardenController::gardenLoaded,
+            this, [this]() {
+                // Update UI elements after loading
+                float temp = m_controller->getModel()->getCurrentTemperature();
+                float moisture = m_controller->getModel()->getCurrentMoisture();
+
+                // Update temperature controls
+                m_tempSlider->setValue(static_cast<int>(temp));
+                m_tempLabel->setText(tr("Temperature: %1°F").arg(temp));
+
+                // Update moisture controls
+                m_moistureSlider->setValue(static_cast<int>(moisture * 100));
+                m_moistureLabel->setText(tr("Moisture: %1%").arg(moisture * 100));
+            });
 }
 
 void MainWindow::handleTemperatureChange(int value) {
@@ -217,4 +253,51 @@ void MainWindow::handleTemperatureSensorToggle(bool enabled) {
 void MainWindow::handleMoistureSensorToggle(bool enabled) {
     m_moistureSlider->setEnabled(!enabled);
     m_controller->toggleMoistureSensor(enabled);
+}
+
+
+void MainWindow::handleSaveGarden() {
+    QString filename = QFileDialog::getSaveFileName(
+            this,
+            tr("Save Garden"),
+            QString(),
+            tr("Garden Files (*.garden);;All Files (*.*)")
+    );
+
+    if (!filename.isEmpty()) {
+        if (!filename.endsWith(".garden")) {
+            filename += ".garden";
+        }
+
+        if (m_controller->saveGarden(filename)) {
+            statusBar()->showMessage(tr("Garden saved successfully"), 3000);
+        } else {
+            QMessageBox::warning(
+                    this,
+                    tr("Save Garden"),
+                    tr("Failed to save garden to %1").arg(filename)
+            );
+        }
+    }
+}
+
+void MainWindow::handleLoadGarden() {
+    QString filename = QFileDialog::getOpenFileName(
+            this,
+            tr("Load Garden"),
+            QString(),
+            tr("Garden Files (*.garden);;All Files (*.*)")
+    );
+
+    if (!filename.isEmpty()) {
+        if (m_controller->loadGarden(filename)) {
+            statusBar()->showMessage(tr("Garden loaded successfully"), 3000);
+        } else {
+            QMessageBox::warning(
+                    this,
+                    tr("Load Garden"),
+                    tr("Failed to load garden from %1").arg(filename)
+            );
+        }
+    }
 }

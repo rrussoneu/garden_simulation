@@ -93,3 +93,7 @@ void Shader::setBool(const QString& name, bool value) {
     m_program->setUniformValue(name.toStdString().c_str(), value ? 1 : 0);
 
 }
+
+GLint Shader::getUniformLocation(const QString& name) const {
+    return m_program->uniformLocation(name.toStdString().c_str());
+}
