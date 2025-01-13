@@ -49,7 +49,7 @@ bool GardenModel::canPlacePlant(const QPoint& position) const {
     return isValidGridPosition(position) && !m_grid[position.x()][position.y()];
 }
 
-Plant* GardenModel::getPlant(const QPoint& position) {
+Plant* GardenModel::getPlant(const QPoint& position) const {
     if (!isValidGridPosition(position)) {
         return nullptr;
     }

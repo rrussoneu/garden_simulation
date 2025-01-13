@@ -24,7 +24,7 @@ public:
     bool addPlant(Plant::Type type, const QPoint& position);
     bool removePlant(const QPoint& position);
     bool canPlacePlant(const QPoint& position) const;
-    Plant* getPlant(const QPoint& position);
+    Plant* getPlant(const QPoint& position) const;
 
     // Grid management
     int getGridSize() const { return m_gridSize; }
@@ -32,7 +32,10 @@ public:
 
     // Sensor management
     void setTemperatureSensor(std::unique_ptr<SensorInterface> sensor);
+    SensorInterface* getTemperatureSensor() const { return m_temperatureSensor.get(); }
     void setMoistureSensor(std::unique_ptr<SensorInterface> sensor);
+    SensorInterface* getMoistureSensor() const { return m_moistureSensor.get(); }
+
 
     // Current state accessors
     float getCurrentTemperature() const { return m_sensorData.temperature; }

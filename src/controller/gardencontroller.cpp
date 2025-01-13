@@ -39,12 +39,25 @@ bool GardenController::canPlacePlant(const QPoint& position) const {
 void GardenController::toggleTemperatureSensor(bool enabled) {
     m_temperatureSensorEnabled = enabled;
     if (enabled) {
-        m_model->setTemperatureSensor(std::move(m_temperatureSensor));
+        float currentTemp = m_model->getCurrentTemperature();
+        m_temperatureSensor = std::make_unique<MockSensor>(currentTemp, 30.0f, 90.0f);
         m_temperatureSensor->startReading();
+        m_model->setTemperatureSensor(std::move(m_temperatureSensor));
     } else {
-        m_temperatureSensor->stopReading();
+        float lastTemp = m_model->getCurrentTemperature();
+        if (auto* sensor = m_model->getTemperatureSensor()) {
+            sensor->stopReading();
+        }
+        // Clear model's ownership
+
         m_model->setTemperatureSensor(nullptr);
-        m_temperatureSensor = std::make_unique<MockSensor>(60.0f, 30.0f, 90.0f);
+        // Create new sensor
+        m_temperatureSensor = std::make_unique<MockSensor>(
+                lastTemp,  // Use the previous temperature
+                30.0f,       // Min temperature
+                90.0f        // Max temperature
+        );
+        m_model->handleTemperatureUpdate(lastTemp);
     }
     emit temperatureSensorStateChanged(enabled);
 }
