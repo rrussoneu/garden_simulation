@@ -163,6 +163,19 @@ void MainWindow::createToolbar() {
 
     toolbar->addSeparator();
 
+    // Add delete mode toggle button
+    QAction* deleteModeAction = toolbar->addAction(QIcon(":/icons/delete.png"), tr("Remove Plants"));
+    deleteModeAction->setCheckable(true);  // Makes it a toggle button
+    deleteModeAction->setStatusTip(tr("Click to enter plant removal mode"));
+
+    connect(deleteModeAction, &QAction::toggled, this, [this](bool checked) {
+        m_gardenWidget->setDeleteMode(checked);
+        statusBar()->showMessage(
+                checked ? tr("Click on plants to remove them") : tr("Ready"),
+                checked ? 0 : 3000  // Keep message while in delete mode
+        );
+    });
+
 }
 
 void MainWindow::setupConnections() {

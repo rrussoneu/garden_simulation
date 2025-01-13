@@ -32,6 +32,7 @@ public:
     bool canPlacePlant(const QPoint& gridPos) const;
     bool addPlant(Plant::Type type, const QPoint& gridPos);
     void removePlant(const QPoint& gridPos);
+    void setDeleteMode(bool enabled);
 
 signals:
     void gridClicked(QPoint gridPosition);
@@ -55,6 +56,8 @@ protected:
     void dragMoveEvent(QDragMoveEvent* event) override;
     void dragLeaveEvent(QDragLeaveEvent* event) override;
     void dropEvent(QDropEvent* event) override;
+    void enterEvent(QEnterEvent* event) override;
+    void leaveEvent(QEvent* event) override;
 
 private:
     static const int GRID_SIZE = 10;
@@ -111,6 +114,11 @@ private:
     QPoint screenToGrid(const QPoint& screenPos);
 
 
+    // Deletion
+    bool m_deleteModeActive = false;
+    QPoint m_hoveredCell = QPoint(-1, -1);
+    void renderPlantHighlight(const QPoint& position, const QVector3D& color);
+    void handleDeleteModeClick(const QPoint& gridPos);
 
 
 
