@@ -63,6 +63,7 @@ void GardenController::toggleTemperatureSensor(bool enabled) {
 }
 
 void GardenController::toggleMoistureSensor(bool enabled) {
+    /*
     m_moistureSensorEnabled = enabled;
     if (enabled) {
         m_model->setMoistureSensor(std::move(m_moistureSensor));
@@ -73,6 +74,8 @@ void GardenController::toggleMoistureSensor(bool enabled) {
         m_moistureSensor = std::make_unique<MockSensor>(0.5f, 0.0f, 1.0f);
     }
     emit moistureSensorStateChanged(enabled);
+     */
+    // For now do nothing, might just leave a display in future
 }
 
 void GardenController::setTemperature(float temperature) {

@@ -31,8 +31,8 @@ private slots:
     void handleMoistureChange(int value);
     void handleTemperatureSensorToggle(bool enabled);
     void handleMoistureSensorToggle(bool enabled);
-    //void handleSaveGarden();
-    //void handleLoadGarden();
+    void handleSaveGarden();
+    void handleLoadGarden();
 
 
 private:
