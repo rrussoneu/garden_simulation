@@ -18,9 +18,6 @@ https://github.com/rrussoneu/RPi_Home
 YouTube:
 [![Garden Simulation Demo](https://img.youtube.com/vi/xmJIMEWbbcs/maxresdefault.jpg)](https://www.youtube.com/watch?v=xmJIMEWbbcs)
 
-Can also see here:
-https://user-images.githubusercontent.com/rrussoneu/garden_simulation/raw/master/res/demo_video.mp4
-
 ### MVC Architecture
 The project follows the Model-View-Controller pattern:
 
